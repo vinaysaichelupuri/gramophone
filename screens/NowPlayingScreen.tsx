@@ -15,10 +15,15 @@ import {
   getActiveTrackSnapshot,
   getPlaybackProgressSnapshot,
   getPlaybackStateSnapshot,
+  getRepeatMode,
+  getShuffleMode,
+  RepeatMode,
   seekTo,
   skipToNext,
   skipToPrevious,
   togglePlayPause,
+  toggleRepeatMode,
+  toggleShuffle,
 } from '@/services/playerService';
 import { toggleLike } from '@/services/libraryStore';
 import { COLORS } from '@/utils/colors';
@@ -34,6 +39,8 @@ export function NowPlayingScreen() {
   const [progressDuration, setProgressDuration] = useState(0);
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekingPosition, setSeekingPosition] = useState(0);
+  const [repeatMode, setRepeatMode] = useState<RepeatMode>('off');
+  const [isShuffleEnabled, setIsShuffleEnabled] = useState(false);
   const isPlaybackAvailable = arePlaybackModulesAvailable();
   const library = useLibrary();
   const songId = getCurrentSongId();
@@ -44,16 +51,20 @@ export function NowPlayingScreen() {
       return;
     }
 
-    const [track, currentPlaybackState, currentProgress] = await Promise.all([
+    const [track, currentPlaybackState, currentProgress, currentRepeat, currentShuffle] = await Promise.all([
       getActiveTrackSnapshot(),
       getPlaybackStateSnapshot(),
       getPlaybackProgressSnapshot(),
+      Promise.resolve(getRepeatMode()),
+      Promise.resolve(getShuffleMode()),
     ]);
 
     setActiveTrack(track);
     setPlaybackState(currentPlaybackState);
     setProgressPosition(currentProgress.position);
     setProgressDuration(currentProgress.duration);
+    setRepeatMode(currentRepeat);
+    setIsShuffleEnabled(currentShuffle);
   }, [isPlaybackAvailable]);
 
   // Refresh songId each poll cycle too so it updates when track changes
@@ -179,14 +190,27 @@ export function NowPlayingScreen() {
 
       <PlaybackControls
         isPlaying={isPlaying}
+        repeatMode={repeatMode}
+        isShuffleEnabled={isShuffleEnabled}
         onPlayPausePress={() => {
           void togglePlayPause();
+          void refreshPlayerSnapshot();
         }}
         onNextPress={() => {
           void skipToNext();
+          void refreshPlayerSnapshot();
         }}
         onPreviousPress={() => {
           void skipToPrevious();
+          void refreshPlayerSnapshot();
+        }}
+        onShufflePress={async () => {
+          await toggleShuffle();
+          void refreshPlayerSnapshot();
+        }}
+        onRepeatPress={() => {
+          toggleRepeatMode();
+          void refreshPlayerSnapshot();
         }}
       />
 

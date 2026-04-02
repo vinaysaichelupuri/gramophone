@@ -4,4 +4,5 @@ export const COLORS = {
   buttonText: '#FFFFFF',
   secondaryText: '#3A3A3A',
   primaryText: '#1C1C1C',
+  accent: '#E85D75',
 } as const;
