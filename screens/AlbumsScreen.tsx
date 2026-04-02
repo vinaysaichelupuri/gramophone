@@ -18,7 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MiniPlayer } from '@/components/MiniPlayer';
 import { useLibrary } from '@/hooks/useLibrary';
 import { getLocalSongs } from '@/services/musicLibraryService';
-import { Album, createAlbum, deleteAlbum } from '@/services/libraryStore';
+import { Album, createAlbum, deleteAlbum, renameAlbum } from '@/services/libraryStore';
 import { Song } from '@/types/song';
 import { COLORS } from '@/utils/colors';
 
@@ -28,18 +28,32 @@ export function AlbumsScreen() {
   const [allSongs, setAllSongs] = useState<Song[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newAlbumName, setNewAlbumName] = useState('');
+  const [editingAlbumId, setEditingAlbumId] = useState<string | null>(null);
 
   useEffect(() => {
     getLocalSongs().then(setAllSongs).catch(() => {});
   }, []);
 
-  const handleCreateAlbum = useCallback(async () => {
+  const handleSaveAlbum = useCallback(async () => {
     const name = newAlbumName.trim();
     if (!name) return;
-    await createAlbum(name);
+
+    if (editingAlbumId) {
+      await renameAlbum(editingAlbumId, name);
+    } else {
+      await createAlbum(name);
+    }
+
     setNewAlbumName('');
+    setEditingAlbumId(null);
     setShowCreateModal(false);
-  }, [newAlbumName]);
+  }, [newAlbumName, editingAlbumId]);
+
+  const openRenameModal = useCallback((album: Album) => {
+    setNewAlbumName(album.name);
+    setEditingAlbumId(album.id);
+    setShowCreateModal(true);
+  }, []);
 
   const handleDeleteAlbum = useCallback((album: Album) => {
     Alert.alert('Delete Album', `Delete "${album.name}"?`, [
@@ -70,9 +84,19 @@ export function AlbumsScreen() {
           hitSlop={10}
           onPress={(e) => {
             e.stopPropagation();
+            openRenameModal(item);
+          }}
+          style={styles.actionBtn}
+        >
+          <Ionicons name="pencil-outline" size={18} color={COLORS.secondaryText} />
+        </Pressable>
+        <Pressable
+          hitSlop={10}
+          onPress={(e) => {
+            e.stopPropagation();
             handleDeleteAlbum(item);
           }}
-          style={styles.deleteBtn}
+          style={styles.actionBtn}
         >
           <Ionicons name="trash-outline" size={18} color={COLORS.secondaryText} />
         </Pressable>
@@ -121,15 +145,26 @@ export function AlbumsScreen() {
         animationType="slide"
         transparent
         visible={showCreateModal}
-        onRequestClose={() => setShowCreateModal(false)}
+        onRequestClose={() => {
+          setShowCreateModal(false);
+          setEditingAlbumId(null);
+          setNewAlbumName('');
+        }}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={{ flex: 1 }}
         >
-          <Pressable style={styles.modalOverlay} onPress={() => setShowCreateModal(false)}>
+          <Pressable
+            style={styles.modalOverlay}
+            onPress={() => {
+              setShowCreateModal(false);
+              setEditingAlbumId(null);
+              setNewAlbumName('');
+            }}
+          >
             <Pressable style={styles.modalSheet} onPress={() => {}}>
-              <Text style={styles.modalTitle}>New Album</Text>
+              <Text style={styles.modalTitle}>{editingAlbumId ? 'Rename Album' : 'New Album'}</Text>
               <TextInput
                 autoFocus
                 value={newAlbumName}
@@ -137,19 +172,26 @@ export function AlbumsScreen() {
                 placeholder="Album name"
                 placeholderTextColor={COLORS.secondaryText}
                 style={styles.modalInput}
-                onSubmitEditing={() => void handleCreateAlbum()}
+                onSubmitEditing={() => void handleSaveAlbum()}
                 returnKeyType="done"
               />
               <View style={styles.modalActions}>
-                <Pressable style={styles.modalCancel} onPress={() => setShowCreateModal(false)}>
+                <Pressable
+                  style={styles.modalCancel}
+                  onPress={() => {
+                    setShowCreateModal(false);
+                    setEditingAlbumId(null);
+                    setNewAlbumName('');
+                  }}
+                >
                   <Text style={styles.modalCancelText}>Cancel</Text>
                 </Pressable>
                 <Pressable
                   style={[styles.modalCreate, !newAlbumName.trim() && styles.modalCreateDisabled]}
-                  onPress={() => void handleCreateAlbum()}
+                  onPress={() => void handleSaveAlbum()}
                   disabled={!newAlbumName.trim()}
                 >
-                  <Text style={styles.modalCreateText}>Create</Text>
+                  <Text style={styles.modalCreateText}>{editingAlbumId ? 'Save' : 'Create'}</Text>
                 </Pressable>
               </View>
             </Pressable>
@@ -255,7 +297,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 4,
   },
-  deleteBtn: {
+  actionBtn: {
     padding: 6,
   },
   // Modal

@@ -5,12 +5,13 @@ import {
   ActivityIndicator,
   FlatList,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppButton } from '@/components/AppButton';
 import { MiniPlayer } from '@/components/MiniPlayer';
@@ -34,19 +35,34 @@ export function SongListScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortAscending, setSortAscending] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSearchVisible, setIsSearchVisible] = useState(false);
+  const [activeTab, setActiveTab] = useState<'all' | 'liked' | string>('all');
   const [permissionState, setPermissionState] = useState<AudioPermissionState>('denied');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const library = useLibrary(); // re-renders when likes/albums change
   const hasNativeModuleSupport = isMusicLibraryModuleAvailable() && arePlaybackModulesAvailable();
 
   const visibleSongs = useMemo(() => {
-    const normalizedQuery = searchQuery.trim().toLowerCase();
-    const filteredSongs = normalizedQuery
-      ? songs.filter((song) => song.title.toLowerCase().includes(normalizedQuery))
-      : songs;
+    let filtered = songs;
 
-    return sortAscending ? filteredSongs : [...filteredSongs].reverse();
-  }, [searchQuery, songs, sortAscending]);
+    // Filter by Tab
+    if (activeTab === 'liked') {
+      filtered = filtered.filter((s) => library.likedSongIds.includes(s.id));
+    } else if (activeTab !== 'all') {
+      const album = library.albums.find((a) => a.id === activeTab);
+      if (album) {
+        filtered = filtered.filter((s) => album.songIds.includes(s.id));
+      }
+    }
+
+    // Filter by Search
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    if (normalizedQuery) {
+      filtered = filtered.filter((song) => song.title.toLowerCase().includes(normalizedQuery));
+    }
+
+    return sortAscending ? filtered : [...filtered].reverse();
+  }, [searchQuery, songs, sortAscending, activeTab, library]);
 
   const loadLibrary = useCallback(async (forceRefresh = false) => {
     setIsLoading(true);
@@ -175,36 +191,75 @@ export function SongListScreen() {
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Gramophone</Text>
-        <Text style={styles.subtitle}>Your local music library</Text>
-      </View>
-
-      <View style={styles.tabsRow}>
-        <View style={styles.activeTabBtn}>
-          <Text style={styles.activeTabText}>All Songs</Text>
+      <View style={styles.headerRow}>
+        <View style={styles.headerText}>
+          <Text style={styles.title}>Gramophone</Text>
+          <Text style={styles.subtitle}>Your local music library</Text>
         </View>
-        <Pressable style={styles.tabBtn} onPress={() => router.push('/liked' as any)}>
-          <Text style={styles.tabText}>Liked Songs</Text>
-        </Pressable>
-        <Pressable style={styles.tabBtn} onPress={() => router.push('/albums' as any)}>
-          <Text style={styles.tabText}>Albums</Text>
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable onPress={() => setIsSearchVisible(!isSearchVisible)} style={styles.iconBtn}>
+            <Ionicons name="search" size={24} color={COLORS.primaryText} />
+          </Pressable>
+          <Pressable
+            onPress={() => setSortAscending((prev) => !prev)}
+            style={styles.iconBtn}
+          >
+            <Ionicons
+              name={sortAscending ? 'arrow-down' : 'arrow-up'}
+              size={24}
+              color={COLORS.primaryText}
+            />
+          </Pressable>
+        </View>
       </View>
 
-      <View style={styles.controlsRow}>
-        <TextInput
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder="Search songs"
-          placeholderTextColor={COLORS.secondaryText}
-          style={styles.searchInput}
-        />
-        <AppButton
-          title={sortAscending ? 'A-Z' : 'Z-A'}
-          onPress={() => setSortAscending((previous) => !previous)}
-          style={styles.sortButton}
-        />
+      {isSearchVisible && (
+        <View style={styles.searchWrapper}>
+          <TextInput
+            autoFocus
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search songs..."
+            placeholderTextColor={COLORS.secondaryText}
+            style={styles.headerSearchInput}
+          />
+          <Pressable onPress={() => {
+            setSearchQuery('');
+            setIsSearchVisible(false);
+          }}>
+            <Ionicons name="close" size={20} color={COLORS.secondaryText} />
+          </Pressable>
+        </View>
+      )}
+
+      <View style={styles.tabsContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsScroll}>
+          <Pressable
+            style={[styles.tabBtn, activeTab === 'all' && styles.activeTabBtn]}
+            onPress={() => setActiveTab('all')}
+          >
+            <Text style={[styles.tabText, activeTab === 'all' && styles.activeTabText]}>All Songs</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.tabBtn, activeTab === 'liked' && styles.activeTabBtn]}
+            onPress={() => setActiveTab('liked')}
+          >
+            <Text style={[styles.tabText, activeTab === 'liked' && styles.activeTabText]}>Liked</Text>
+          </Pressable>
+          {library.albums.map((album) => (
+            <Pressable
+              key={album.id}
+              style={[styles.tabBtn, activeTab === album.id && styles.activeTabBtn]}
+              onPress={() => setActiveTab(album.id)}
+            >
+              <Text style={[styles.tabText, activeTab === album.id && styles.activeTabText]}>{album.name}</Text>
+            </Pressable>
+          ))}
+          <Pressable style={styles.manageAlbumsBtn} onPress={() => router.push('/albums' as any)}>
+            <Ionicons name="settings-outline" size={16} color={COLORS.secondaryText} />
+            <Text style={styles.manageText}>Edit Albums</Text>
+          </Pressable>
+        </ScrollView>
       </View>
 
       {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
@@ -224,13 +279,43 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 20,
   },
-  header: {
-    marginBottom: 16,
-  },
-  tabsRow: {
+  headerRow: {
+    alignItems: 'center',
     flexDirection: 'row',
-    gap: 8,
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  headerText: {
+    flex: 1,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  iconBtn: {
+    padding: 4,
+  },
+  searchWrapper: {
+    alignItems: 'center',
+    backgroundColor: '#F0F0F0',
+    borderRadius: 10,
+    flexDirection: 'row',
     marginBottom: 16,
+    paddingHorizontal: 12,
+  },
+  headerSearchInput: {
+    color: COLORS.primaryText,
+    flex: 1,
+    fontSize: 15,
+    height: 40,
+  },
+  tabsContainer: {
+    marginBottom: 16,
+    marginHorizontal: -16,
+  },
+  tabsScroll: {
+    gap: 8,
+    paddingHorizontal: 16,
   },
   activeTabBtn: {
     backgroundColor: COLORS.button,
@@ -253,6 +338,18 @@ const styles = StyleSheet.create({
     color: '#555',
     fontSize: 14,
     fontWeight: '600',
+  },
+  manageAlbumsBtn: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+  },
+  manageText: {
+    color: COLORS.secondaryText,
+    fontSize: 13,
+    fontWeight: '500',
   },
   title: {
     color: COLORS.primaryText,
