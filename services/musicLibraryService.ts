@@ -14,6 +14,7 @@ type ReadDirEntry = {
 };
 
 let cachedRNFSModule: ReactNativeFsModule | null | undefined;
+let songCache: Song[] | null = null;
 
 function getRNFSModule(): ReactNativeFsModule | null {
   if (cachedRNFSModule !== undefined) {
@@ -85,7 +86,11 @@ async function scanDirectory(
   }
 }
 
-export async function getLocalSongs(): Promise<Song[]> {
+export async function getLocalSongs(forceRefresh = false): Promise<Song[]> {
+  if (songCache && !forceRefresh) {
+    return songCache;
+  }
+
   const rnfs = getRNFSModule();
   if (!rnfs) {
     throw new Error(
@@ -116,6 +121,7 @@ export async function getLocalSongs(): Promise<Song[]> {
     await scanDirectory(rnfs, rootPath, 0, discoveredFiles);
   }
 
-  const songs = Array.from(discoveredFiles).map(toSong);
-  return sortSongsByTitle(songs);
+  const discoveredSongs = Array.from(discoveredFiles).map(toSong);
+  songCache = sortSongsByTitle(discoveredSongs);
+  return songCache;
 }

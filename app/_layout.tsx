@@ -30,8 +30,21 @@ export default function RootLayout() {
             title: 'Now Playing',
           }}
         />
+        <Stack.Screen
+          name="liked"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="albums"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="album-detail"
+          options={{ headerShown: false }}
+        />
       </Stack>
       <StatusBar style="dark" />
     </ThemeProvider>
   );
 }
+

@@ -25,6 +25,8 @@ let currentIndex = -1;
 let playbackState = "none";
 let playbackProgress: PlaybackProgressSnapshot = { duration: 0, position: 0 };
 let activeTrack: ActiveTrackSnapshot | null = null;
+let currentSongId: string | null = null;
+let isLoadingTrack = false;
 
 function normalizeUri(path: string): string {
   return path.startsWith("file://") ? path : `file://${path}`;
@@ -43,6 +45,7 @@ async function unloadCurrentSound() {
 function updateActiveTrackFromQueue() {
   if (currentIndex < 0 || currentIndex >= queue.length) {
     activeTrack = null;
+    currentSongId = null;
     return;
   }
 
@@ -53,6 +56,7 @@ function updateActiveTrackFromQueue() {
     artwork: song.artwork,
     duration: song.duration,
   };
+  currentSongId = song.id;
 }
 
 async function loadTrackAtIndex(index: number, shouldPlay: boolean) {
@@ -60,9 +64,17 @@ async function loadTrackAtIndex(index: number, shouldPlay: boolean) {
     return;
   }
 
+  // Unload immediately to stop any currently playing audio before
+  // async loading starts — this prevents the double-play bug.
+  await unloadCurrentSound();
+
+  if (isLoadingTrack) {
+    return;
+  }
+  isLoadingTrack = true;
+
   currentIndex = index;
   updateActiveTrackFromQueue();
-  await unloadCurrentSound();
 
   const source = { uri: normalizeUri(queue[index].path) };
   const initialStatus = {
@@ -70,13 +82,17 @@ async function loadTrackAtIndex(index: number, shouldPlay: boolean) {
     progressUpdateIntervalMillis: 300,
   };
 
-  const { sound, status } = await Audio.Sound.createAsync(
-    source,
-    initialStatus,
-    onPlaybackStatusUpdate,
-  );
-  currentSound = sound;
-  applyPlaybackStatus(status);
+  try {
+    const { sound, status } = await Audio.Sound.createAsync(
+      source,
+      initialStatus,
+      onPlaybackStatusUpdate,
+    );
+    currentSound = sound;
+    applyPlaybackStatus(status);
+  } finally {
+    isLoadingTrack = false;
+  }
 }
 
 async function handleDidFinish() {
@@ -217,4 +233,8 @@ export async function getPlaybackStateSnapshot(): Promise<string> {
 
 export function arePlaybackModulesAvailable(): boolean {
   return true;
+}
+
+export function getCurrentSongId(): string | null {
+  return currentSongId;
 }

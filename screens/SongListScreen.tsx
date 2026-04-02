@@ -1,65 +1,60 @@
-import { useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+} from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppButton } from "@/components/AppButton";
-import { SongListItem } from "@/components/SongListItem";
-import { StatusCard } from "@/components/StatusCard";
-import {
-  getLocalSongs,
-  isMusicLibraryModuleAvailable,
-} from "@/services/musicLibraryService";
+import { AppButton } from '@/components/AppButton';
+import { MiniPlayer } from '@/components/MiniPlayer';
+import { SongListItem } from '@/components/SongListItem';
+import { StatusCard } from '@/components/StatusCard';
+import { useLibrary } from '@/hooks/useLibrary';
+import { getLocalSongs, isMusicLibraryModuleAvailable } from '@/services/musicLibraryService';
+import { arePlaybackModulesAvailable, loadQueueAndPlay, setupPlayer } from '@/services/playerService';
+import { loadLibraryStore, toggleLike } from '@/services/libraryStore';
 import {
   AudioPermissionState,
   openPermissionSettings,
   requestAudioPermission,
-} from "@/services/permissionService";
-import {
-  arePlaybackModulesAvailable,
-  loadQueueAndPlay,
-  setupPlayer,
-} from "@/services/playerService";
-import { Song } from "@/types/song";
-import { COLORS } from "@/utils/colors";
+} from '@/services/permissionService';
+import { Song } from '@/types/song';
+import { COLORS } from '@/utils/colors';
 
 export function SongListScreen() {
   const router = useRouter();
   const [songs, setSongs] = useState<Song[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [sortAscending, setSortAscending] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
-  const [permissionState, setPermissionState] =
-    useState<AudioPermissionState>("denied");
+  const [permissionState, setPermissionState] = useState<AudioPermissionState>('denied');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const hasNativeModuleSupport =
-    isMusicLibraryModuleAvailable() && arePlaybackModulesAvailable();
+  const library = useLibrary(); // re-renders when likes/albums change
+  const hasNativeModuleSupport = isMusicLibraryModuleAvailable() && arePlaybackModulesAvailable();
 
   const visibleSongs = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
     const filteredSongs = normalizedQuery
-      ? songs.filter((song) =>
-          song.title.toLowerCase().includes(normalizedQuery),
-        )
+      ? songs.filter((song) => song.title.toLowerCase().includes(normalizedQuery))
       : songs;
 
     return sortAscending ? filteredSongs : [...filteredSongs].reverse();
   }, [searchQuery, songs, sortAscending]);
 
-  const loadLibrary = useCallback(async () => {
+  const loadLibrary = useCallback(async (forceRefresh = false) => {
     setIsLoading(true);
     setErrorMessage(null);
 
     try {
       if (!hasNativeModuleSupport) {
-        setPermissionState("unavailable");
+        setPermissionState('unavailable');
         setSongs([]);
         return;
       }
@@ -67,25 +62,27 @@ export function SongListScreen() {
       const permissionResult = await requestAudioPermission();
       setPermissionState(permissionResult.status);
 
-      if (permissionResult.status !== "granted") {
+      if (permissionResult.status !== 'granted') {
         setSongs([]);
         return;
       }
 
       await setupPlayer();
-      const discoveredSongs = await getLocalSongs();
+      await loadLibraryStore(); // load liked + albums from disk
+      const discoveredSongs = await getLocalSongs(forceRefresh);
       setSongs(discoveredSongs);
     } catch (error) {
-      setErrorMessage(
-        "Unable to load local songs right now. Please try again.",
-      );
+      setErrorMessage('Unable to load local songs right now. Please try again.');
     } finally {
       setIsLoading(false);
     }
   }, [hasNativeModuleSupport]);
 
+  const onRefresh = useCallback(async () => {
+    await loadLibrary(true);
+  }, [loadLibrary]);
+
   useEffect(() => {
-    // Bootstraps permission + media scan when the screen mounts.
     void loadLibrary();
   }, [loadLibrary]);
 
@@ -93,11 +90,9 @@ export function SongListScreen() {
     async (songIndex: number) => {
       try {
         await loadQueueAndPlay(visibleSongs, songIndex);
-        router.push("/now-playing");
+        router.push('/now-playing');
       } catch {
-        setErrorMessage(
-          "Playback could not start. Please try a different file.",
-        );
+        setErrorMessage('Playback could not start. Please try a different file.');
       }
     },
     [router, visibleSongs],
@@ -108,33 +103,31 @@ export function SongListScreen() {
       return (
         <View style={styles.centeredState}>
           <ActivityIndicator color={COLORS.button} />
-          <Text style={styles.secondaryText}>
-            Scanning your local audio files...
-          </Text>
+          <Text style={styles.secondaryText}>Scanning your local audio files...</Text>
         </View>
       );
     }
 
-    if (permissionState !== "granted") {
-      const isBlocked = permissionState === "blocked";
-      const isUnavailable = permissionState === "unavailable";
+    if (permissionState !== 'granted') {
+      const isBlocked = permissionState === 'blocked';
+      const isUnavailable = permissionState === 'unavailable';
       const title = isUnavailable
-        ? "Native Modules Unavailable"
+        ? 'Native Modules Unavailable'
         : isBlocked
-          ? "Permission Blocked"
-          : "Permission Required";
+          ? 'Permission Blocked'
+          : 'Permission Required';
       const description = isUnavailable
         ? "This app needs a native development build. Run 'npx expo run:android' and open the dev client."
         : isBlocked
-          ? "Music access is blocked. Open settings to allow local audio access."
-          : "Allow local audio access so the app can list songs on your device.";
+          ? 'Music access is blocked. Open settings to allow local audio access.'
+          : 'Allow local audio access so the app can list songs on your device.';
 
       return (
         <View style={styles.gap}>
           <StatusCard title={title} description={description} />
           {isUnavailable ? null : (
             <AppButton
-              title={isBlocked ? "Open Settings" : "Grant Permission"}
+              title={isBlocked ? 'Open Settings' : 'Grant Permission'}
               onPress={isBlocked ? openPermissionSettings : loadLibrary}
             />
           )}
@@ -159,10 +152,17 @@ export function SongListScreen() {
         data={visibleSongs}
         keyExtractor={(item) => item.id}
         renderItem={({ item, index }) => (
-          <SongListItem song={item} onPress={() => handlePlaySong(index)} />
+          <SongListItem
+            song={item}
+            onPress={() => handlePlaySong(index)}
+            isLiked={library.likedSongIds.includes(item.id)}
+            onLikePress={() => void toggleLike(item.id)}
+          />
         )}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        onRefresh={onRefresh}
+        refreshing={isLoading}
         ListEmptyComponent={
           <StatusCard
             title="No Results"
@@ -174,11 +174,23 @@ export function SongListScreen() {
   };
 
   return (
-    <SafeAreaView edges={["top", "left", "right"]} style={styles.container}>
-      <Text style={styles.title}>GramoPhone</Text>
-      <Text style={styles.subtitle}>
-        Play songs already available on your device.
-      </Text>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Gramophone</Text>
+        <Text style={styles.subtitle}>Your local music library</Text>
+      </View>
+
+      <View style={styles.tabsRow}>
+        <View style={styles.activeTabBtn}>
+          <Text style={styles.activeTabText}>All Songs</Text>
+        </View>
+        <Pressable style={styles.tabBtn} onPress={() => router.push('/liked' as any)}>
+          <Text style={styles.tabText}>Liked Songs</Text>
+        </Pressable>
+        <Pressable style={styles.tabBtn} onPress={() => router.push('/albums' as any)}>
+          <Text style={styles.tabText}>Albums</Text>
+        </Pressable>
+      </View>
 
       <View style={styles.controlsRow}>
         <TextInput
@@ -189,17 +201,18 @@ export function SongListScreen() {
           style={styles.searchInput}
         />
         <AppButton
-          title={sortAscending ? "A-Z" : "Z-A"}
+          title={sortAscending ? 'A-Z' : 'Z-A'}
           onPress={() => setSortAscending((previous) => !previous)}
           style={styles.sortButton}
         />
       </View>
 
-      {errorMessage ? (
-        <Text style={styles.errorText}>{errorMessage}</Text>
-      ) : null}
+      {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
 
       <View style={styles.body}>{renderBody()}</View>
+
+      {/* Mini player strip at the bottom */}
+      <MiniPlayer />
     </SafeAreaView>
   );
 }
@@ -208,24 +221,53 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: COLORS.background,
     flex: 1,
-    paddingBottom: 18,
     paddingHorizontal: 16,
     paddingTop: 20,
   },
+  header: {
+    marginBottom: 16,
+  },
+  tabsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  activeTabBtn: {
+    backgroundColor: COLORS.button,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  activeTabText: {
+    color: COLORS.buttonText,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  tabBtn: {
+    backgroundColor: '#EAE8E3',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  tabText: {
+    color: '#555',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   title: {
     color: COLORS.primaryText,
-    fontSize: 26,
-    fontWeight: "700",
+    fontSize: 28,
+    fontWeight: '700',
   },
   subtitle: {
     color: COLORS.secondaryText,
     fontSize: 14,
-    marginTop: 6,
+    marginTop: 2,
   },
   controlsRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    marginTop: 18,
+    alignItems: 'center',
+    flexDirection: 'row',
+    marginTop: 14,
   },
   searchInput: {
     borderColor: COLORS.secondaryText,
@@ -251,12 +293,12 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   listContent: {
-    paddingBottom: 28,
+    paddingBottom: 12,
   },
   centeredState: {
-    alignItems: "center",
+    alignItems: 'center',
     flex: 1,
-    justifyContent: "center",
+    justifyContent: 'center',
   },
   secondaryText: {
     color: COLORS.secondaryText,
