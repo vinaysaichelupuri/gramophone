@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MiniPlayer } from '@/components/MiniPlayer';
 import { SongListItem } from '@/components/SongListItem';
+import { SongOptionsMenu } from '@/components/SongOptionsMenu';
 import { StatusCard } from '@/components/StatusCard';
 import { useLibrary } from '@/hooks/useLibrary';
 import { getLocalSongs } from '@/services/musicLibraryService';
@@ -30,6 +31,8 @@ export function AlbumDetailScreen() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectedSong, setSelectedSong] = useState<Song | null>(null);
+  const [isMenuVisible, setIsMenuVisible] = useState(false);
 
   const loadSongs = useCallback(async (force = false) => {
     setIsRefreshing(true);
@@ -123,7 +126,14 @@ export function AlbumDetailScreen() {
           renderItem={({ item, index }) => (
             <View style={styles.songRow}>
               <View style={styles.songItem}>
-                <SongListItem song={item} onPress={() => void handlePlay(index)} />
+                <SongListItem
+                  song={item}
+                  onPress={() => void handlePlay(index)}
+                  onLongPress={() => {
+                    setSelectedSong(item);
+                    setIsMenuVisible(true);
+                  }}
+                />
               </View>
               <Pressable
                 hitSlop={10}
@@ -142,6 +152,12 @@ export function AlbumDetailScreen() {
       )}
 
       <MiniPlayer />
+
+      <SongOptionsMenu
+        visible={isMenuVisible}
+        song={selectedSong}
+        onClose={() => setIsMenuVisible(false)}
+      />
 
       {/* Add Songs Modal */}
       <Modal

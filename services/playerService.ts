@@ -307,3 +307,23 @@ export function arePlaybackModulesAvailable(): boolean {
 export function getCurrentSongId(): string | null {
   return currentSongId;
 }
+
+export async function playNow(song: Song): Promise<void> {
+  await setupPlayer();
+  // Insert at current position + 1 and skip to it
+  const targetIndex = currentIndex + 1;
+  queue.splice(targetIndex, 0, song);
+  originalQueue.splice(targetIndex, 0, song);
+  await loadTrackAtIndex(targetIndex, true);
+}
+
+export function playNext(song: Song): void {
+  const targetIndex = currentIndex + 1;
+  queue.splice(targetIndex, 0, song);
+  originalQueue.splice(targetIndex, 0, song);
+}
+
+export function addToQueue(song: Song): void {
+  queue.push(song);
+  originalQueue.push(song);
+}
