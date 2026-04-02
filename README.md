@@ -1,50 +1,68 @@
-# Welcome to your Expo app 👋
+# GramoPhone - Offline Music Player
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Android-focused offline music player built with React Native + Expo project setup, using native modules for:
 
-## Get started
+- local file scan (`react-native-fs`)
+- audio playback (`expo-av`)
+- runtime permissions (`react-native-permissions`)
 
-1. Install dependencies
+## Features
 
-   ```bash
-   npm install
-   ```
+- Discover local audio files from device storage
+- Song list with title, artist fallback, and duration placeholder/fallback
+- Playback controls: play/pause, next, previous
+- Now Playing screen with seekable progress bar
+- Permission handling for Android local media access
+- Search by song name and title sort toggle
 
-2. Start the app
+## Project Structure
 
-   ```bash
-   npx expo start
-   ```
+- `components/`
+- `screens/`
+- `services/`
+- `utils/`
+- `types/`
 
-In the output, you'll find options to open the app in a
+## Setup
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+1. Install dependencies:
 
 ```bash
-npm run reset-project
+npm install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+2. Build and run Android development build (required for native modules):
 
-## Learn more
+```bash
+npm run android
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+3. Start Metro for the dev client:
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```bash
+npm run start:dev-client
+```
 
-## Join the community
+Optional (Expo Go, no native playback/filesystem support):
 
-Join our community of developers creating universal apps.
+```bash
+npm run android:go
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## Android Permission Configuration
+
+This project injects Android storage/audio permissions into `AndroidManifest.xml` via Expo config plugin:
+
+- Plugin file: `plugins/withAndroidAudioPermissions.js`
+- Config reference: `app.json` → `expo.plugins`
+
+Injected permissions:
+
+- `android.permission.READ_MEDIA_AUDIO`
+- `android.permission.READ_EXTERNAL_STORAGE` with `maxSdkVersion=32`
+
+## Notes
+
+- The app is optimized for Android local playback.
+- Metadata quality depends on files available on the device and what can be inferred from file names/track data.
+- If no songs are found, place audio files in device `Music` or `Download` directories and scan again.

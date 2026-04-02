@@ -1,0 +1,37 @@
+{
+  "name": "sdd-workflow",
+  "version": "0.1.0",
+  "description": "Two-agent SDD workflow with a planning architect and a plan-driven developer.",
+  "author": {
+    "name": "GramoPhone Team",
+    "email": "team@gramophone.local",
+    "url": "https://example.com/gramophone"
+  },
+  "homepage": "https://example.com/gramophone/sdd-workflow",
+  "repository": "https://example.com/gramophone/repo",
+  "license": "MIT",
+  "keywords": [
+    "sdd",
+    "planning",
+    "implementation",
+    "workflow",
+    "coding"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "SDD Workflow",
+    "shortDescription": "Plan first with an architect, then implement with a plan-driven developer",
+    "longDescription": "Use SDD Workflow to split delivery into two focused agents: SDD Architect creates an implementable plan from requirements, and SDD Developer executes code changes strictly from the approved plan with validation.",
+    "developerName": "GramoPhone Team",
+    "category": "Coding",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://example.com/gramophone/sdd-workflow",
+    "privacyPolicyURL": "https://example.com/privacy",
+    "termsOfServiceURL": "https://example.com/terms",
+    "defaultPrompt": "Use SDD Architect to create an implementation plan, then use SDD Developer to implement that approved plan."
+  }
+}

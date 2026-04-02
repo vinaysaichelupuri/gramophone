@@ -6,10 +6,15 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "gramophone",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "audio"
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -19,7 +24,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.anonymous.GramoPhone"
     },
     "web": {
       "output": "static",
@@ -27,6 +33,7 @@
     },
     "plugins": [
       "expo-router",
+      "./plugins/withAndroidAudioPermissions",
       [
         "expo-splash-screen",
         {
@@ -43,6 +50,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "b42084e5-96d9-4719-baa6-cb68dc7d284c"
+      }
+    },
+    "owner": "vinaysaichelpuri"
   }
 }

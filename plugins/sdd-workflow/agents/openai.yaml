@@ -1,0 +1,4 @@
+interface:
+  display_name: "SDD Workflow"
+  short_description: "Two-agent flow: architect plans first, developer implements second"
+  default_prompt: "Use SDD Architect to produce a plan, then use SDD Developer to implement the approved phases."

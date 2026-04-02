@@ -1,0 +1,64 @@
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+
+import { Song } from '@/types/song';
+import { COLORS } from '@/utils/colors';
+import { formatDuration } from '@/utils/formatters';
+
+interface SongListItemProps {
+  song: Song;
+  onPress: () => void;
+}
+
+export function SongListItem({ song, onPress }: SongListItemProps) {
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}>
+      <View style={styles.textGroup}>
+        <Text numberOfLines={1} style={styles.title}>
+          {song.title}
+        </Text>
+        <Text numberOfLines={1} style={styles.artist}>
+          {song.artist}
+        </Text>
+      </View>
+      <Text style={styles.duration}>{formatDuration(song.duration)}</Text>
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  card: {
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+    borderColor: COLORS.secondaryText,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  cardPressed: {
+    opacity: 0.85,
+  },
+  textGroup: {
+    flex: 1,
+    marginRight: 12,
+  },
+  title: {
+    color: COLORS.primaryText,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  artist: {
+    color: COLORS.secondaryText,
+    fontSize: 13,
+    marginTop: 4,
+  },
+  duration: {
+    color: COLORS.secondaryText,
+    fontSize: 13,
+    minWidth: 48,
+    textAlign: 'right',
+  },
+});

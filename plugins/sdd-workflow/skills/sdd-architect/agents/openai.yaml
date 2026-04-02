@@ -1,0 +1,4 @@
+interface:
+  display_name: "SDD Architect"
+  short_description: "Turn specs into implementation plans"
+  default_prompt: "Use SDD Architect to produce a phased implementation plan from requirements before any coding starts."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "SDD Developer"
+  short_description: "Implement code from an approved SDD plan"
+  default_prompt: "Use SDD Developer to implement code from an approved implementation plan and report verification results."
