@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MiniPlayer } from '@/components/MiniPlayer';
 import { SongListItem } from '@/components/SongListItem';
+import { SongOptionsMenu } from '@/components/SongOptionsMenu';
 import { StatusCard } from '@/components/StatusCard';
 import { useLibrary } from '@/hooks/useLibrary';
 import { getLocalSongs } from '@/services/musicLibraryService';
@@ -20,6 +21,8 @@ export function LikedSongsScreen() {
   const [allSongs, setAllSongs] = useState<Song[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedSong, setSelectedSong] = useState<Song | null>(null);
+  const [isMenuVisible, setIsMenuVisible] = useState(false);
 
   const loadSongs = useCallback(async (force = false) => {
     setIsLoading(true);
@@ -84,6 +87,10 @@ export function LikedSongsScreen() {
             <SongListItem
               song={item}
               onPress={() => void handlePlay(index)}
+              onLongPress={() => {
+                setSelectedSong(item);
+                setIsMenuVisible(true);
+              }}
               isLiked
               onLikePress={() => void toggleLike(item.id)}
             />
@@ -96,6 +103,12 @@ export function LikedSongsScreen() {
       )}
 
       <MiniPlayer />
+
+      <SongOptionsMenu
+        visible={isMenuVisible}
+        song={selectedSong}
+        onClose={() => setIsMenuVisible(false)}
+      />
     </SafeAreaView>
   );
 }

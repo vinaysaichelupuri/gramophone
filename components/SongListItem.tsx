@@ -9,6 +9,7 @@ import { formatDuration } from '@/utils/formatters';
 interface SongListItemProps {
   song: Song;
   onPress: () => void;
+  onLongPress?: () => void;
   isLiked?: boolean;
   onLikePress?: () => void;
 }
@@ -16,12 +17,15 @@ interface SongListItemProps {
 export const SongListItem = memo(function SongListItem({
   song,
   onPress,
+  onLongPress,
   isLiked = false,
   onLikePress,
 }: SongListItemProps) {
   return (
     <Pressable
       onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={300}
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
     >
       <View style={styles.textGroup}>

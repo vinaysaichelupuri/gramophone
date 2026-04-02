@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppButton } from '@/components/AppButton';
 import { MiniPlayer } from '@/components/MiniPlayer';
 import { SongListItem } from '@/components/SongListItem';
+import { SongOptionsMenu } from '@/components/SongOptionsMenu';
 import { StatusCard } from '@/components/StatusCard';
 import { useLibrary } from '@/hooks/useLibrary';
 import { getLocalSongs, isMusicLibraryModuleAvailable } from '@/services/musicLibraryService';
@@ -39,6 +40,8 @@ export function SongListScreen() {
   const [activeTab, setActiveTab] = useState<'all' | 'liked' | string>('all');
   const [permissionState, setPermissionState] = useState<AudioPermissionState>('denied');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [selectedSong, setSelectedSong] = useState<Song | null>(null);
+  const [isMenuVisible, setIsMenuVisible] = useState(false);
   const library = useLibrary(); // re-renders when likes/albums change
   const hasNativeModuleSupport = isMusicLibraryModuleAvailable() && arePlaybackModulesAvailable();
 
@@ -171,6 +174,10 @@ export function SongListScreen() {
           <SongListItem
             song={item}
             onPress={() => handlePlaySong(index)}
+            onLongPress={() => {
+              setSelectedSong(item);
+              setIsMenuVisible(true);
+            }}
             isLiked={library.likedSongIds.includes(item.id)}
             onLikePress={() => void toggleLike(item.id)}
           />
@@ -268,6 +275,12 @@ export function SongListScreen() {
 
       {/* Mini player strip at the bottom */}
       <MiniPlayer />
+
+      <SongOptionsMenu
+        visible={isMenuVisible}
+        song={selectedSong}
+        onClose={() => setIsMenuVisible(false)}
+      />
     </SafeAreaView>
   );
 }

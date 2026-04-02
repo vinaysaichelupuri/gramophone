@@ -18,15 +18,21 @@ export interface ActiveTrackSnapshot {
   duration?: number;
 }
 
+export type RepeatMode = "off" | "all" | "one";
+
 let isPlayerSetup = false;
 let currentSound: Audio.Sound | null = null;
 let queue: Song[] = [];
+let originalQueue: Song[] = [];
 let currentIndex = -1;
 let playbackState = "none";
 let playbackProgress: PlaybackProgressSnapshot = { duration: 0, position: 0 };
 let activeTrack: ActiveTrackSnapshot | null = null;
 let currentSongId: string | null = null;
 let isLoadingTrack = false;
+
+let repeatMode: RepeatMode = "off";
+let isShuffleEnabled = false;
 
 function normalizeUri(path: string): string {
   return path.startsWith("file://") ? path : `file://${path}`;
@@ -96,8 +102,18 @@ async function loadTrackAtIndex(index: number, shouldPlay: boolean) {
 }
 
 async function handleDidFinish() {
+  if (repeatMode === "one") {
+    await currentSound?.playFromPositionAsync(0);
+    return;
+  }
+
   if (currentIndex + 1 < queue.length) {
     await loadTrackAtIndex(currentIndex + 1, true);
+    return;
+  }
+
+  if (repeatMode === "all" && queue.length > 0) {
+    await loadTrackAtIndex(0, true);
     return;
   }
 
@@ -162,9 +178,19 @@ export async function loadQueueAndPlay(
 
   await setupPlayer();
 
-  queue = songs;
-  const safeIndex = Math.max(0, Math.min(startIndex, songs.length - 1));
-  await loadTrackAtIndex(safeIndex, true);
+  originalQueue = [...songs];
+  if (isShuffleEnabled) {
+    const shuffled = [...songs].sort(() => Math.random() - 0.5);
+    // Find the starting song in the shuffled array to maintain continuity
+    const startSong = songs[startIndex];
+    const shuffledIndex = shuffled.findIndex((s) => s.id === startSong.id);
+    queue = shuffled;
+    await loadTrackAtIndex(shuffledIndex >= 0 ? shuffledIndex : 0, true);
+  } else {
+    queue = songs;
+    const safeIndex = Math.max(0, Math.min(startIndex, songs.length - 1));
+    await loadTrackAtIndex(safeIndex, true);
+  }
 }
 
 export async function togglePlayPause(): Promise<void> {
@@ -190,25 +216,68 @@ export async function skipToNext(): Promise<void> {
     return;
   }
 
-  const nextIndex = Math.min(currentIndex + 1, queue.length - 1);
-  if (nextIndex === currentIndex) {
-    return;
+  const nextIndex = currentIndex + 1;
+  if (nextIndex < queue.length) {
+    await loadTrackAtIndex(nextIndex, true);
+  } else if (repeatMode === "all") {
+    await loadTrackAtIndex(0, true);
   }
-
-  await loadTrackAtIndex(nextIndex, true);
 }
 
 export async function skipToPrevious(): Promise<void> {
-  if (queue.length === 0) {
+  if (queue.length === 0 || !currentSound) {
     return;
   }
 
-  const previousIndex = Math.max(currentIndex - 1, 0);
-  if (previousIndex === currentIndex) {
+  // If we've played more than 3 seconds, just restart the current song
+  if (playbackProgress.position > 3) {
+    await currentSound.setPositionAsync(0);
     return;
   }
 
-  await loadTrackAtIndex(previousIndex, true);
+  const previousIndex = currentIndex - 1;
+  if (previousIndex >= 0) {
+    await loadTrackAtIndex(previousIndex, true);
+  } else if (repeatMode === "all") {
+    await loadTrackAtIndex(queue.length - 1, true);
+  }
+}
+
+export function toggleRepeatMode(): RepeatMode {
+  const modes: RepeatMode[] = ["off", "all", "one"];
+  const nextIndex = (modes.indexOf(repeatMode) + 1) % modes.length;
+  repeatMode = modes[nextIndex];
+  return repeatMode;
+}
+
+export function getRepeatMode(): RepeatMode {
+  return repeatMode;
+}
+
+export async function toggleShuffle(): Promise<boolean> {
+  isShuffleEnabled = !isShuffleEnabled;
+
+  if (queue.length === 0) return isShuffleEnabled;
+
+  if (isShuffleEnabled) {
+    // Shuffle the queue but keep current song at current position (or move it to start)
+    const currentSong = queue[currentIndex];
+    const otherSongs = originalQueue.filter((s) => s.id !== currentSong.id);
+    const shuffled = otherSongs.sort(() => Math.random() - 0.5);
+    queue = [currentSong, ...shuffled];
+    currentIndex = 0;
+  } else {
+    // Restore original order
+    const currentSong = queue[currentIndex];
+    queue = [...originalQueue];
+    currentIndex = queue.findIndex((s) => s.id === currentSong.id);
+  }
+
+  return isShuffleEnabled;
+}
+
+export function getShuffleMode(): boolean {
+  return isShuffleEnabled;
 }
 
 export async function seekTo(position: number): Promise<void> {
@@ -237,4 +306,24 @@ export function arePlaybackModulesAvailable(): boolean {
 
 export function getCurrentSongId(): string | null {
   return currentSongId;
+}
+
+export async function playNow(song: Song): Promise<void> {
+  await setupPlayer();
+  // Insert at current position + 1 and skip to it
+  const targetIndex = currentIndex + 1;
+  queue.splice(targetIndex, 0, song);
+  originalQueue.splice(targetIndex, 0, song);
+  await loadTrackAtIndex(targetIndex, true);
+}
+
+export function playNext(song: Song): void {
+  const targetIndex = currentIndex + 1;
+  queue.splice(targetIndex, 0, song);
+  originalQueue.splice(targetIndex, 0, song);
+}
+
+export function addToQueue(song: Song): void {
+  queue.push(song);
+  originalQueue.push(song);
 }
