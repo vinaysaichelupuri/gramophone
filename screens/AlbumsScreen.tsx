@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import {
   Alert,
   FlatList,
@@ -17,8 +17,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MiniPlayer } from '@/components/MiniPlayer';
 import { useLibrary } from '@/hooks/useLibrary';
-import { getLocalSongs } from '@/services/musicLibraryService';
-import { Album, createAlbum, deleteAlbum, loadLibraryStore, renameAlbum } from '@/services/libraryStore';
+import { getLocalSongs, subscribeToLibraryUpdates } from '@/services/musicLibraryService';
+import { Album, createAlbum, deleteAlbum, loadLibraryStore, renameAlbum, getSystemAlbums } from '@/services/libraryStore';
 import { Song } from '@/types/song';
 import { COLORS } from '@/utils/colors';
 
@@ -33,7 +33,15 @@ export function AlbumsScreen() {
   useEffect(() => {
     void loadLibraryStore();
     getLocalSongs().then(setAllSongs).catch(() => {});
+    
+    const unsub = subscribeToLibraryUpdates((songs) => {
+      setAllSongs(songs);
+    });
+    return unsub;
   }, []);
+
+  const systemAlbums = useMemo(() => getSystemAlbums(allSongs), [allSongs]);
+  const combinedAlbums = useMemo(() => [...library.albums, ...systemAlbums], [library.albums, systemAlbums]);
 
   const handleSaveAlbum = useCallback(async () => {
     const name = newAlbumName.trim();
@@ -51,12 +59,14 @@ export function AlbumsScreen() {
   }, [newAlbumName, editingAlbumId]);
 
   const openRenameModal = useCallback((album: Album) => {
+    if (album.isSystem) return;
     setNewAlbumName(album.name);
     setEditingAlbumId(album.id);
     setShowCreateModal(true);
   }, []);
 
   const handleDeleteAlbum = useCallback((album: Album) => {
+    if (album.isSystem) return;
     Alert.alert('Delete Album', `Delete "${album.name}"?`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => void deleteAlbum(album.id) },
@@ -77,30 +87,41 @@ export function AlbumsScreen() {
           <Text style={styles.albumName} numberOfLines={1}>
             {item.name}
           </Text>
-          <Text style={styles.albumMeta}>
-            {songCount} {songCount === 1 ? 'song' : 'songs'}
-          </Text>
+          <View style={styles.albumMetaRow}>
+            {item.isSystem && item.systemType && (
+              <View style={styles.systemBadge}>
+                <Text style={styles.systemBadgeText}>{item.systemType}</Text>
+              </View>
+            )}
+            <Text style={styles.albumMeta}>
+              {songCount} {songCount === 1 ? 'song' : 'songs'}
+            </Text>
+          </View>
         </View>
-        <Pressable
-          hitSlop={10}
-          onPress={(e) => {
-            e.stopPropagation();
-            openRenameModal(item);
-          }}
-          style={styles.actionBtn}
-        >
-          <Ionicons name="pencil-outline" size={18} color={COLORS.secondaryText} />
-        </Pressable>
-        <Pressable
-          hitSlop={10}
-          onPress={(e) => {
-            e.stopPropagation();
-            handleDeleteAlbum(item);
-          }}
-          style={styles.actionBtn}
-        >
-          <Ionicons name="trash-outline" size={18} color={COLORS.secondaryText} />
-        </Pressable>
+        {!item.isSystem && (
+          <Pressable
+            hitSlop={10}
+            onPress={(e) => {
+              e.stopPropagation();
+              openRenameModal(item);
+            }}
+            style={styles.actionBtn}
+          >
+            <Ionicons name="pencil-outline" size={18} color={COLORS.secondaryText} />
+          </Pressable>
+        )}
+        {!item.isSystem && (
+          <Pressable
+            hitSlop={10}
+            onPress={(e) => {
+              e.stopPropagation();
+              handleDeleteAlbum(item);
+            }}
+            style={styles.actionBtn}
+          >
+            <Ionicons name="trash-outline" size={18} color={COLORS.secondaryText} />
+          </Pressable>
+        )}
       </Pressable>
     );
   };
@@ -114,7 +135,7 @@ export function AlbumsScreen() {
         </Pressable>
         <View style={styles.headerText}>
           <Text style={styles.title}>Albums</Text>
-          <Text style={styles.subtitle}>{library.albums.length} albums</Text>
+          <Text style={styles.subtitle}>{combinedAlbums.length} albums</Text>
         </View>
         <Pressable style={styles.addBtn} onPress={() => setShowCreateModal(true)}>
           <Ionicons name="add" size={22} color={COLORS.buttonText} />
@@ -122,17 +143,17 @@ export function AlbumsScreen() {
         </Pressable>
       </View>
 
-      {library.albums.length === 0 ? (
+      {combinedAlbums.length === 0 ? (
         <View style={styles.emptyState}>
           <Ionicons name="albums-outline" size={56} color={COLORS.secondaryText} />
           <Text style={styles.emptyTitle}>No albums yet</Text>
           <Text style={styles.emptyDesc}>
-            Tap "New" to create your first album and add songs to it.
+            Your dynamic albums and user-created albums will appear here.
           </Text>
         </View>
       ) : (
         <FlatList
-          data={library.albums}
+          data={combinedAlbums}
           keyExtractor={(item) => item.id}
           renderItem={renderAlbum}
           contentContainerStyle={styles.list}
@@ -297,6 +318,24 @@ const styles = StyleSheet.create({
     color: COLORS.secondaryText,
     fontSize: 13,
     marginTop: 4,
+  },
+  albumMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  systemBadge: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  systemBadgeText: {
+    color: COLORS.secondaryText,
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
   },
   actionBtn: {
     padding: 6,

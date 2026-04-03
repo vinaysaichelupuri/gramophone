@@ -14,6 +14,8 @@ export interface Album {
   name: string;
   songIds: string[];
   createdAt: number;
+  isSystem?: boolean;
+  systemType?: string;
 }
 
 export interface LibraryData {
@@ -145,8 +147,33 @@ export async function removeSongFromAlbum(albumId: string, songId: string): Prom
   await persist();
 }
 
+export function getSystemAlbums(songs: Song[]): Album[] {
+  const albumsMap = new Map<string, Album>();
+
+  songs.forEach((song) => {
+    if (song.album) {
+      const id = `sys_album_${song.album.toLowerCase()}`;
+      if (!albumsMap.has(id)) {
+        albumsMap.set(id, { id, name: song.album, songIds: [], createdAt: 0, isSystem: true, systemType: 'Movie / Album' });
+      }
+      if (!albumsMap.get(id)!.songIds.includes(song.id)) albumsMap.get(id)!.songIds.push(song.id);
+    }
+    
+    if (song.artist && song.artist !== 'Unknown Artist') {
+      const id = `sys_artist_${song.artist.toLowerCase()}`;
+      if (!albumsMap.has(id)) {
+        albumsMap.set(id, { id, name: song.artist, songIds: [], createdAt: 0, isSystem: true, systemType: 'Singer' });
+      }
+      if (!albumsMap.get(id)!.songIds.includes(song.id)) albumsMap.get(id)!.songIds.push(song.id);
+    }
+  });
+
+  return Array.from(albumsMap.values());
+}
+
 export function getAlbumSongs(albumId: string, allSongs: Song[]): Song[] {
-  const album = store.albums.find((a) => a.id === albumId);
+  const systemAlbums = getSystemAlbums(allSongs);
+  const album = store.albums.find((a) => a.id === albumId) || systemAlbums.find((a) => a.id === albumId);
   if (!album) return [];
   return album.songIds.map((id) => allSongs.find((s) => s.id === id)).filter(Boolean) as Song[];
 }
