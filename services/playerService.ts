@@ -30,6 +30,7 @@ let playbackProgress: PlaybackProgressSnapshot = { duration: 0, position: 0 };
 let activeTrack: ActiveTrackSnapshot | null = null;
 let currentSongId: string | null = null;
 let isLoadingTrack = false;
+let isHandlingFinish = false;
 
 let repeatMode: RepeatMode = "off";
 let isShuffleEnabled = false;
@@ -43,9 +44,15 @@ async function unloadCurrentSound() {
     return;
   }
 
-  currentSound.setOnPlaybackStatusUpdate(null);
-  await currentSound.unloadAsync();
-  currentSound = null;
+  const soundToUnload = currentSound;
+  currentSound = null; // Clear immediately to unblock subsequent loads
+  
+  try {
+    soundToUnload.setOnPlaybackStatusUpdate(null);
+    await soundToUnload.unloadAsync();
+  } catch (e) {
+    console.warn("Failed to cleanly unload audio", e);
+  }
 }
 
 function updateActiveTrackFromQueue() {
@@ -107,26 +114,33 @@ async function loadTrackAtIndex(index: number, shouldPlay: boolean) {
 }
 
 async function handleDidFinish() {
-  if (repeatMode === "one") {
-    await currentSound?.playFromPositionAsync(0);
-    return;
-  }
+  if (isHandlingFinish) return;
+  isHandlingFinish = true;
 
-  if (currentIndex + 1 < queue.length) {
-    await loadTrackAtIndex(currentIndex + 1, true);
-    return;
-  }
+  try {
+    if (repeatMode === "one") {
+      await currentSound?.playFromPositionAsync(0);
+      return;
+    }
 
-  if (repeatMode === "all" && queue.length > 0) {
-    await loadTrackAtIndex(0, true);
-    return;
-  }
+    if (currentIndex + 1 < queue.length) {
+      await loadTrackAtIndex(currentIndex + 1, true);
+      return;
+    }
 
-  playbackState = "paused";
-  playbackProgress = {
-    ...playbackProgress,
-    position: playbackProgress.duration,
-  };
+    if (repeatMode === "all" && queue.length > 0) {
+      await loadTrackAtIndex(0, true);
+      return;
+    }
+
+    playbackState = "paused";
+    playbackProgress = {
+      ...playbackProgress,
+      position: playbackProgress.duration,
+    };
+  } finally {
+    isHandlingFinish = false;
+  }
 }
 
 function applyPlaybackStatus(status: AVPlaybackStatus) {
