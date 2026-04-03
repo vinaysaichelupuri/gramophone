@@ -1,13 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import {
   Alert,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -33,6 +36,7 @@ export function AlbumDetailScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
   const [isMenuVisible, setIsMenuVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const loadSongs = useCallback(async (force = false) => {
     setIsRefreshing(true);
@@ -54,7 +58,16 @@ export function AlbumDetailScreen() {
   const albumSongs = album ? getAlbumSongs(albumId!, allSongs) : [];
 
   // Songs not yet in this album
-  const availableSongs = allSongs.filter((s) => !album?.songIds.includes(s.id));
+  const availableSongs = useMemo(() => {
+    let list = allSongs.filter((s) => !album?.songIds.includes(s.id));
+    const query = searchQuery.trim().toLowerCase();
+    if (query) {
+      list = list.filter(
+        (song) => song.title.toLowerCase().includes(query) || (song.artist && song.artist.toLowerCase().includes(query))
+      );
+    }
+    return list;
+  }, [allSongs, album?.songIds, searchQuery]);
 
   const handlePlay = useCallback(
     async (index: number) => {
@@ -164,49 +177,76 @@ export function AlbumDetailScreen() {
         animationType="slide"
         transparent
         visible={showAddModal}
-        onRequestClose={() => setShowAddModal(false)}
+        onRequestClose={() => {
+          setShowAddModal(false);
+          setSearchQuery('');
+        }}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add Songs to "{album.name}"</Text>
-              <Pressable onPress={() => setShowAddModal(false)} hitSlop={10}>
-                <Ionicons name="close" size={24} color={COLORS.primaryText} />
-              </Pressable>
-            </View>
-
-            {availableSongs.length === 0 ? (
-              <View style={styles.modalEmpty}>
-                <Text style={styles.modalEmptyText}>All songs are already in this album.</Text>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalSheet}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Add Songs to "{album.name}"</Text>
+                <Pressable onPress={() => {
+                  setShowAddModal(false);
+                  setSearchQuery('');
+                }} hitSlop={10}>
+                  <Ionicons name="close" size={24} color={COLORS.primaryText} />
+                </Pressable>
               </View>
-            ) : (
-              <FlatList
-                data={availableSongs}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item }) => (
-                  <Pressable
-                    style={({ pressed }) => [styles.modalSongRow, pressed && { opacity: 0.75 }]}
-                    onPress={async () => {
-                      await addSongToAlbum(albumId!, item.id);
-                    }}
-                  >
-                    <View style={styles.modalSongInfo}>
-                      <Text style={styles.modalSongTitle} numberOfLines={1}>
-                        {item.title}
-                      </Text>
-                      <Text style={styles.modalSongArtist} numberOfLines={1}>
-                        {item.artist}
-                      </Text>
-                    </View>
-                    <Ionicons name="add-circle" size={24} color={COLORS.button} />
+
+              <View style={styles.modalSearchWrapper}>
+                <Ionicons name="search" size={20} color={COLORS.secondaryText} style={styles.modalSearchIcon} />
+                <TextInput
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder="Search songs..."
+                  placeholderTextColor={COLORS.secondaryText}
+                  style={styles.modalSearchInput}
+                />
+                {searchQuery.length > 0 && (
+                  <Pressable onPress={() => setSearchQuery('')} hitSlop={10}>
+                    <Ionicons name="close-circle" size={18} color={COLORS.secondaryText} />
                   </Pressable>
                 )}
-                contentContainerStyle={styles.modalList}
-                showsVerticalScrollIndicator={false}
-              />
-            )}
+              </View>
+
+              {availableSongs.length === 0 ? (
+                <View style={styles.modalEmpty}>
+                  <Text style={styles.modalEmptyText}>All songs are already in this album.</Text>
+                </View>
+              ) : (
+                <FlatList
+                  data={availableSongs}
+                  keyExtractor={(item) => item.id}
+                  renderItem={({ item }) => (
+                    <Pressable
+                      style={({ pressed }) => [styles.modalSongRow, pressed && { opacity: 0.75 }]}
+                      onPress={async () => {
+                        await addSongToAlbum(albumId!, item.id);
+                      }}
+                    >
+                      <View style={styles.modalSongInfo}>
+                        <Text style={styles.modalSongTitle} numberOfLines={1}>
+                          {item.title}
+                        </Text>
+                        <Text style={styles.modalSongArtist} numberOfLines={1}>
+                          {item.artist}
+                        </Text>
+                      </View>
+                      <Ionicons name="add-circle" size={24} color={COLORS.button} />
+                    </Pressable>
+                  )}
+                  contentContainerStyle={styles.modalList}
+                  showsVerticalScrollIndicator={false}
+                />
+              )}
+            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -317,6 +357,23 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     marginRight: 8,
+  },
+  modalSearchWrapper: {
+    alignItems: 'center',
+    backgroundColor: '#F0F0F0',
+    borderRadius: 10,
+    flexDirection: 'row',
+    marginBottom: 16,
+    paddingHorizontal: 12,
+  },
+  modalSearchIcon: {
+    marginRight: 8,
+  },
+  modalSearchInput: {
+    color: COLORS.primaryText,
+    flex: 1,
+    fontSize: 15,
+    height: 40,
   },
   modalEmpty: {
     alignItems: 'center',
