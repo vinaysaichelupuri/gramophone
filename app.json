@@ -42,7 +42,10 @@
             "DEFAULT"
           ]
         }
-      ]
+      ],
+      "androidNavigationBar": {
+        "visible": "sticky-immersive"
+      }
     },
     "web": {
       "output": "static",
