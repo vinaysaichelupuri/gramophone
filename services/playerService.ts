@@ -36,7 +36,10 @@ let repeatMode: RepeatMode = "off";
 let isShuffleEnabled = false;
 
 function normalizeUri(path: string): string {
-  return path.startsWith("file://") ? path : `file://${path}`;
+  if (path.startsWith("file://") || path.startsWith("content://") || path.startsWith("http://") || path.startsWith("https://")) {
+    return path;
+  }
+  return `file://${path}`;
 }
 
 async function unloadCurrentSound() {
