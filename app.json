@@ -27,7 +27,22 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.GramoPhone"
+      "package": "com.anonymous.GramoPhone",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            { "scheme": "file", "mimeType": "audio/*" },
+            { "scheme": "content", "mimeType": "audio/*" },
+            { "scheme": "file", "mimeType": "application/ogg" },
+            { "scheme": "content", "mimeType": "application/ogg" }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "web": {
       "output": "static",
