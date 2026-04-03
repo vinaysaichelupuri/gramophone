@@ -189,7 +189,7 @@ export function SongListScreen() {
         ListEmptyComponent={
           <StatusCard
             title="No Results"
-            description="No songs match your search. Try another song title."
+            description="No songs found"
           />
         }
       />

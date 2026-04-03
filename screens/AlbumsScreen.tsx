@@ -18,7 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MiniPlayer } from '@/components/MiniPlayer';
 import { useLibrary } from '@/hooks/useLibrary';
 import { getLocalSongs } from '@/services/musicLibraryService';
-import { Album, createAlbum, deleteAlbum, renameAlbum } from '@/services/libraryStore';
+import { Album, createAlbum, deleteAlbum, loadLibraryStore, renameAlbum } from '@/services/libraryStore';
 import { Song } from '@/types/song';
 import { COLORS } from '@/utils/colors';
 
@@ -31,6 +31,7 @@ export function AlbumsScreen() {
   const [editingAlbumId, setEditingAlbumId] = useState<string | null>(null);
 
   useEffect(() => {
+    void loadLibraryStore();
     getLocalSongs().then(setAllSongs).catch(() => {});
   }, []);
 

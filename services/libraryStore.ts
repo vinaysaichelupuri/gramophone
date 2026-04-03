@@ -53,6 +53,7 @@ export async function loadLibraryStore(): Promise<void> {
         likedSongIds: Array.isArray(parsed.likedSongIds) ? parsed.likedSongIds : [],
         albums: Array.isArray(parsed.albums) ? parsed.albums : [],
       };
+      notifyListeners();
     }
   } catch {
     // use empty defaults
