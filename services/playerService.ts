@@ -96,6 +96,11 @@ async function loadTrackAtIndex(index: number, shouldPlay: boolean) {
     );
     currentSound = sound;
     applyPlaybackStatus(status);
+    
+    if (shouldPlay) {
+      // Workaround for Expo AV occasionally failing to auto-play with initialStatus shouldPlay=true
+      await sound.playAsync();
+    }
   } finally {
     isLoadingTrack = false;
   }
