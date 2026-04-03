@@ -1,4 +1,4 @@
-const AUDIO_EXTENSIONS = ['.mp3', '.m4a', '.aac', '.wav', '.flac', '.ogg'];
+const AUDIO_EXTENSIONS = ['.mp3', '.m4a', '.aac', '.wav', '.flac', '.ogg', '.mp4', '.m4b', '.amr', '.3gp', '.opus', '.mid', '.midi', '.alac', '.aiff', '.wma', '.caf', '.3g2'];
 
 export function isAudioFile(filePath: string): boolean {
   const normalizedPath = filePath.toLowerCase();
