@@ -98,20 +98,21 @@ export async function getLocalSongs(forceRefresh = false): Promise<Song[]> {
     );
   }
 
-  const scanRoots = [
+  const scanRoots = Array.from(new Set([
     `${rnfs.ExternalStorageDirectoryPath}/Music`,
     `${rnfs.ExternalStorageDirectoryPath}/Download`,
     rnfs.DownloadDirectoryPath,
-  ].filter(Boolean);
+  ].filter(Boolean)));
 
   const existingRoots: string[] = [];
   for (const rootPath of scanRoots) {
     try {
-      if (await rnfs.exists(rootPath)) {
-        existingRoots.push(rootPath);
+      const normalizedRoot = normalizePath(rootPath);
+      if (await rnfs.exists(normalizedRoot) && !existingRoots.includes(normalizedRoot)) {
+        existingRoots.push(normalizedRoot);
       }
     } catch {
-      // Ignore inaccessible paths so scanning can continue for other roots.
+      // Ignore inaccessible paths
     }
   }
 
@@ -121,7 +122,17 @@ export async function getLocalSongs(forceRefresh = false): Promise<Song[]> {
     await scanDirectory(rnfs, rootPath, 0, discoveredFiles);
   }
 
-  const discoveredSongs = Array.from(discoveredFiles).map(toSong);
-  songCache = sortSongsByTitle(discoveredSongs);
+  const seenIds = new Set<string>();
+  const uniqueSongs: Song[] = [];
+  
+  for (const file of discoveredFiles) {
+    const song = toSong(file);
+    if (!seenIds.has(song.id)) {
+      seenIds.add(song.id);
+      uniqueSongs.push(song);
+    }
+  }
+
+  songCache = sortSongsByTitle(uniqueSongs);
   return songCache;
 }

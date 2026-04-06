@@ -5,6 +5,7 @@ import {
   InterruptionModeAndroid,
   InterruptionModeIOS,
 } from "expo-av";
+import * as KeepAwake from 'expo-keep-awake';
 
 export interface PlaybackProgressSnapshot {
   duration: number;
@@ -116,7 +117,15 @@ async function loadTrackAtIndex(index: number, shouldPlay: boolean) {
       const result = await sound.playAsync();
       applyPlaybackStatus(result);
     }
-  } catch (e) {
+  } catch (e: any) {
+    // If it's a focus error, try once more after a short delay
+    if (e?.message?.includes("AudioFocusNotAcquiredException")) {
+      console.log("Audio focus failed, retrying in 500ms...");
+      await new Promise(resolve => setTimeout(resolve, 500));
+      isLoadingTrack = false; // reset to allow retry
+      return loadTrackAtIndex(index, shouldPlay);
+    }
+    
     console.error("Failed to load track:", e);
     playbackState = "none";
   } finally {
@@ -176,6 +185,11 @@ function applyPlaybackStatus(status: AVPlaybackStatus) {
     playbackState = "buffering";
   } else {
     playbackState = status.shouldPlay ? "playing" : "paused";
+    if (status.shouldPlay) {
+      KeepAwake.activateKeepAwakeAsync().catch(() => {});
+    } else {
+      KeepAwake.deactivateKeepAwake().catch(() => {});
+    }
   }
 
   if (status.didJustFinish) {
@@ -194,7 +208,7 @@ export async function setupPlayer(): Promise<void> {
 
   await Audio.setAudioModeAsync({
     allowsRecordingIOS: false,
-    interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
+    interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
     interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
     playsInSilentModeIOS: true,
     shouldDuckAndroid: true,

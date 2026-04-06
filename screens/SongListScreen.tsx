@@ -64,7 +64,15 @@ export function SongListScreen() {
       filtered = filtered.filter((song) => song.title.toLowerCase().includes(normalizedQuery));
     }
 
-    return sortAscending ? filtered : [...filtered].reverse();
+    const result = sortAscending ? filtered : [...filtered].reverse();
+    
+    // Final fail-safe: ensure absolute uniqueness of IDs for FlatList keys
+    const seenIds = new Set<string>();
+    return result.filter(song => {
+      if (seenIds.has(song.id)) return false;
+      seenIds.add(song.id);
+      return true;
+    });
   }, [searchQuery, songs, sortAscending, activeTab, library]);
 
   const loadLibrary = useCallback(async (forceRefresh = false) => {
