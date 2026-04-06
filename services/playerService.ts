@@ -51,8 +51,10 @@ async function unloadCurrentSound() {
   currentSound = null; // Clear immediately to unblock subsequent loads
   
   try {
+    // Stop and clear listener before unloading
     soundToUnload.setOnPlaybackStatusUpdate(null);
-    await soundToUnload.unloadAsync();
+    await soundToUnload.stopAsync().catch(() => {});
+    await soundToUnload.unloadAsync().catch(() => {});
   } catch (e) {
     console.warn("Failed to cleanly unload audio", e);
   }
@@ -80,25 +82,26 @@ async function loadTrackAtIndex(index: number, shouldPlay: boolean) {
     return;
   }
 
-  // Unload immediately to stop any currently playing audio before
-  // async loading starts — this prevents the double-play bug.
-  await unloadCurrentSound();
-
   if (isLoadingTrack) {
+    console.log("Track is already loading, skipping redundant load request");
     return;
   }
   isLoadingTrack = true;
 
-  currentIndex = index;
-  updateActiveTrackFromQueue();
-
-  const source = { uri: normalizeUri(queue[index].path) };
-  const initialStatus = {
-    shouldPlay,
-    progressUpdateIntervalMillis: 300,
-  };
-
   try {
+    // Unload immediately to stop any currently playing audio before
+    // async loading starts — this prevents the double-play bug.
+    await unloadCurrentSound();
+
+    currentIndex = index;
+    updateActiveTrackFromQueue();
+
+    const source = { uri: normalizeUri(queue[index].path) };
+    const initialStatus = {
+      shouldPlay,
+      progressUpdateIntervalMillis: 300,
+    };
+
     const { sound, status } = await Audio.Sound.createAsync(
       source,
       initialStatus,
@@ -109,8 +112,13 @@ async function loadTrackAtIndex(index: number, shouldPlay: boolean) {
     
     if (shouldPlay) {
       // Workaround for Expo AV occasionally failing to auto-play with initialStatus shouldPlay=true
-      await sound.playAsync();
+      // We also add a small safety check to ensure it's actually playing
+      const result = await sound.playAsync();
+      applyPlaybackStatus(result);
     }
+  } catch (e) {
+    console.error("Failed to load track:", e);
+    playbackState = "none";
   } finally {
     isLoadingTrack = false;
   }
@@ -122,7 +130,11 @@ async function handleDidFinish() {
 
   try {
     if (repeatMode === "one") {
-      await currentSound?.playFromPositionAsync(0);
+      if (currentSound) {
+        await currentSound.playFromPositionAsync(0);
+      } else {
+        await loadTrackAtIndex(currentIndex, true);
+      }
       return;
     }
 
@@ -141,6 +153,8 @@ async function handleDidFinish() {
       ...playbackProgress,
       position: playbackProgress.duration,
     };
+  } catch (e) {
+    console.error("Error in handleDidFinish:", e);
   } finally {
     isHandlingFinish = false;
   }
@@ -217,11 +231,17 @@ export async function loadQueueAndPlay(
 
 export async function togglePlayPause(): Promise<void> {
   if (!currentSound) {
+    // If we have a queue and index but no sound instance, try to load it
+    if (currentIndex >= 0 && currentIndex < queue.length) {
+      await loadTrackAtIndex(currentIndex, true);
+    }
     return;
   }
 
   const status = await currentSound.getStatusAsync();
   if (!status.isLoaded) {
+    // Try to reload if it's in a bad state
+    await loadTrackAtIndex(currentIndex, true);
     return;
   }
 

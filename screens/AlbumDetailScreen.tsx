@@ -161,6 +161,7 @@ export function AlbumDetailScreen() {
           showsVerticalScrollIndicator={false}
           onRefresh={() => void loadSongs(true)}
           refreshing={isRefreshing}
+          keyboardShouldPersistTaps="handled"
         />
       )}
 
@@ -242,6 +243,7 @@ export function AlbumDetailScreen() {
                   )}
                   contentContainerStyle={styles.modalList}
                   showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
                 />
               )}
             </View>

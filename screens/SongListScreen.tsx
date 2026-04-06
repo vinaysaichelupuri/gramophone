@@ -192,6 +192,7 @@ export function SongListScreen() {
             description="No songs found"
           />
         }
+        keyboardShouldPersistTaps="handled"
       />
     );
   };
