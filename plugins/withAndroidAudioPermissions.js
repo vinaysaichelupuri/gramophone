@@ -32,6 +32,9 @@ module.exports = function withAndroidAudioPermissions(config) {
 
     ensurePermission(usesPermissions, 'android.permission.READ_MEDIA_AUDIO');
     ensurePermission(usesPermissions, 'android.permission.READ_EXTERNAL_STORAGE', 32);
+    ensurePermission(usesPermissions, 'android.permission.FOREGROUND_SERVICE');
+    ensurePermission(usesPermissions, 'android.permission.FOREGROUND_SERVICE_AUDIO_PLAYBACK');
+    ensurePermission(usesPermissions, 'android.permission.WAKE_LOCK');
 
     manifest['uses-permission'] = usesPermissions;
     return configWithManifest;
