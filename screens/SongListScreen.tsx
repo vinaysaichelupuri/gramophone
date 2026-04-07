@@ -58,10 +58,46 @@ export function SongListScreen() {
       }
     }
 
-    // Filter by Search
     const normalizedQuery = searchQuery.trim().toLowerCase();
     if (normalizedQuery) {
-      filtered = filtered.filter((song) => song.title.toLowerCase().includes(normalizedQuery));
+      const searchTerms = normalizedQuery.split(/\s+/);
+      
+      const scoredFiltered = filtered
+        .map((song) => {
+          const title = (song.title || '').toLowerCase();
+          const artist = (song.artist || '').toLowerCase();
+          const album = (song.album || '').toLowerCase();
+          const combined = `${title} ${artist} ${album}`;
+          
+          // Check if every word in the search query matches somewhere in the song metadata
+          const isMatch = searchTerms.every((term) => combined.includes(term));
+          if (!isMatch) return null;
+
+          // Assign a relevance score based on match quality
+          let score = 0;
+          
+          // Title matches
+          if (title === normalizedQuery) score += 100;
+          else if (title.startsWith(normalizedQuery)) score += 80;
+          else if (searchTerms.some(term => title.split(/\s+/).some(word => word.startsWith(term)))) score += 60;
+          else if (title.includes(normalizedQuery)) score += 40;
+
+          // Artist matches
+          if (artist === normalizedQuery) score += 30;
+          else if (artist.startsWith(normalizedQuery)) score += 20;
+          else if (artist.includes(normalizedQuery)) score += 10;
+
+          // Album matches
+          if (album === normalizedQuery) score += 15;
+          else if (album.includes(normalizedQuery)) score += 5;
+
+          return { song, score };
+        })
+        .filter((item): item is { song: Song; score: number } => item !== null);
+
+      // Sort by highest score first
+      scoredFiltered.sort((a, b) => b.score - a.score);
+      filtered = scoredFiltered.map((item) => item.song);
     }
 
     const result = sortAscending ? filtered : [...filtered].reverse();
