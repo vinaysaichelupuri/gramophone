@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AppButton } from '@/components/AppButton';
 import { PlaybackControls } from '@/components/PlaybackControls';
@@ -12,9 +12,11 @@ import {
   ActiveTrackSnapshot,
   arePlaybackModulesAvailable,
   getCurrentSongId,
+  getQueueSnapshot,
   getActiveTrackSnapshot,
   getPlaybackProgressSnapshot,
   getPlaybackStateSnapshot,
+  playAtQueueIndex,
   getRepeatMode,
   getShuffleMode,
   RepeatMode,
@@ -26,6 +28,7 @@ import {
   toggleShuffle,
 } from '@/services/playerService';
 import { toggleLike } from '@/services/libraryStore';
+import { Song } from '@/types/song';
 import { COLORS } from '@/utils/colors';
 import { formatDuration } from '@/utils/formatters';
 
@@ -41,6 +44,8 @@ export function NowPlayingScreen() {
   const [seekingPosition, setSeekingPosition] = useState(0);
   const [repeatMode, setRepeatMode] = useState<RepeatMode>('off');
   const [isShuffleEnabled, setIsShuffleEnabled] = useState(false);
+  const [queueSongs, setQueueSongs] = useState<Song[]>([]);
+  const [queueIndex, setQueueIndex] = useState(-1);
   const isPlaybackAvailable = arePlaybackModulesAvailable();
   const library = useLibrary();
   const songId = getCurrentSongId();
@@ -51,12 +56,13 @@ export function NowPlayingScreen() {
       return;
     }
 
-    const [track, currentPlaybackState, currentProgress, currentRepeat, currentShuffle] = await Promise.all([
+    const [track, currentPlaybackState, currentProgress, currentRepeat, currentShuffle, queueSnapshot] = await Promise.all([
       getActiveTrackSnapshot(),
       getPlaybackStateSnapshot(),
       getPlaybackProgressSnapshot(),
       Promise.resolve(getRepeatMode()),
       Promise.resolve(getShuffleMode()),
+      getQueueSnapshot(),
     ]);
 
     setActiveTrack(track);
@@ -65,6 +71,8 @@ export function NowPlayingScreen() {
     setProgressDuration(currentProgress.duration);
     setRepeatMode(currentRepeat);
     setIsShuffleEnabled(currentShuffle);
+    setQueueSongs(queueSnapshot.songs);
+    setQueueIndex(queueSnapshot.currentIndex);
   }, [isPlaybackAvailable]);
 
   // Refresh songId each poll cycle too so it updates when track changes
@@ -101,6 +109,14 @@ export function NowPlayingScreen() {
 
     return 0;
   }, [activeTrack?.duration, progressDuration]);
+
+  const nextUpSongs = useMemo(
+    () =>
+      queueSongs
+        .slice(Math.max(0, queueIndex + 1), Math.max(0, queueIndex + 3))
+        .map((song, offset) => ({ song, absoluteIndex: queueIndex + 1 + offset })),
+    [queueSongs, queueIndex],
+  );
 
   const handleSeekStart = () => {
     setIsSeeking(true);
@@ -150,7 +166,7 @@ export function NowPlayingScreen() {
   const showArtwork = typeof activeTrack.artwork === 'string' && activeTrack.artwork.length > 0;
 
   return (
-    <View style={styles.container}>
+    <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.artworkWrapper}>
         <Image source={showArtwork ? { uri: activeTrack.artwork } : fallbackArtwork} style={styles.artwork} />
       </View>
@@ -219,14 +235,35 @@ export function NowPlayingScreen() {
         <Text style={styles.metaText}>Duration: {formatDuration(duration)}</Text>
       </View>
 
-      <View style={styles.footerActions}>
-        <AppButton
-          title="Back to Song List"
-          onPress={() => router.replace('/')}
-          style={styles.fullWidthButton}
-        />
-      </View>
-    </View>
+      {nextUpSongs.length > 0 ? (
+        <View style={styles.nextUpSection}>
+          <Text style={styles.nextUpTitle}>Next Up</Text>
+          <View style={styles.nextUpList}>
+            {nextUpSongs.map(({ song, absoluteIndex }) => (
+              <Pressable
+                key={`${song.id}_${absoluteIndex}`}
+                style={({ pressed }) => [styles.nextUpItem, pressed && { opacity: 0.75 }]}
+                onPress={async () => {
+                  await playAtQueueIndex(absoluteIndex);
+                  await refreshPlayerSnapshot();
+                }}
+              >
+                <View style={styles.nextUpText}>
+                  <Text style={styles.nextUpSongTitle} numberOfLines={1}>
+                    {song.title}
+                  </Text>
+                  <Text style={styles.nextUpSongArtist} numberOfLines={1}>
+                    {song.artist}
+                  </Text>
+                </View>
+                <Ionicons name="play-circle-outline" size={22} color={COLORS.secondaryText} />
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      ) : null}
+
+    </ScrollView>
   );
 }
 
@@ -280,12 +317,42 @@ const styles = StyleSheet.create({
     color: COLORS.secondaryText,
     fontSize: 13,
   },
-  footerActions: {
-    gap: 10,
-    marginTop: 22,
+  nextUpSection: {
+    marginTop: 20,
   },
-  fullWidthButton: {
-    width: '100%',
+  nextUpTitle: {
+    color: COLORS.primaryText,
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  nextUpList: {
+    gap: 8,
+  },
+  nextUpItem: {
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+    borderColor: COLORS.secondaryText,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  nextUpText: {
+    flex: 1,
+    marginRight: 10,
+  },
+  nextUpSongTitle: {
+    color: COLORS.primaryText,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  nextUpSongArtist: {
+    color: COLORS.secondaryText,
+    fontSize: 12,
+    marginTop: 2,
   },
   backButton: {
     marginTop: 12,

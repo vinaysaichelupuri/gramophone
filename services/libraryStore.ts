@@ -14,11 +14,60 @@ export interface Album {
   name: string;
   songIds: string[];
   createdAt: number;
+  isSystem?: boolean;
+  systemType?: string;
 }
 
 export interface LibraryData {
   likedSongIds: string[];
   albums: Album[];
+}
+
+function normalizeGroupKey(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function isIgnoredFolderName(folderName: string): boolean {
+  const normalized = folderName.trim().toLowerCase();
+  if (!normalized) return true;
+
+  const ignored = new Set([
+    'music',
+    'download',
+    'downloads',
+    'audio',
+    'songs',
+    'storage',
+    'emulated',
+    '0',
+    'android',
+    'media',
+  ]);
+  if (ignored.has(normalized)) return true;
+
+  // Skip technical folders like bitrate/quality buckets.
+  if (/^\d+\s?kbps$/.test(normalized)) return true;
+  if (/^\d{3,4}p$/.test(normalized)) return true;
+  if (/^(www\.)?[\w-]+\.(com|co|in|net|org)$/.test(normalized)) return true;
+  if (/(songsmp3|naasongs|sensongs|masstamilan|djmaza)/.test(normalized)) return true;
+
+  return false;
+}
+
+function getBestFolderGroupName(filePath: string): string | null {
+  const normalized = filePath.replace(/\\/g, '/');
+  const parts = normalized.split('/').filter(Boolean);
+  if (parts.length < 2) return null;
+
+  // Try closest folders first (parent, then parent's parent, etc.)
+  for (let i = parts.length - 2; i >= 0; i--) {
+    const candidate = parts[i]?.trim();
+    if (!candidate) continue;
+    if (isIgnoredFolderName(candidate)) continue;
+    return candidate;
+  }
+
+  return null;
 }
 
 // ─── Persistence ──────────────────────────────────────────────────────────────
@@ -145,8 +194,58 @@ export async function removeSongFromAlbum(albumId: string, songId: string): Prom
   await persist();
 }
 
+export function getSystemAlbums(songs: Song[]): Album[] {
+  const albumsMap = new Map<string, Album>();
+
+  if (songs.length > 0) {
+    albumsMap.set('sys_all_songs', {
+      id: 'sys_all_songs',
+      name: 'All Songs',
+      songIds: songs.map((song) => song.id),
+      createdAt: 0,
+      isSystem: true,
+      systemType: 'Library',
+    });
+  }
+
+  songs.forEach((song) => {
+    const albumName = song.album?.trim();
+    if (albumName) {
+      const id = `sys_album_${normalizeGroupKey(albumName)}`;
+      if (!albumsMap.has(id)) {
+        albumsMap.set(id, { id, name: albumName, songIds: [], createdAt: 0, isSystem: true, systemType: 'Movie / Album' });
+      }
+      if (!albumsMap.get(id)!.songIds.includes(song.id)) albumsMap.get(id)!.songIds.push(song.id);
+    }
+
+    const artistName = song.artist?.trim();
+    if (artistName && artistName !== 'Unknown Artist') {
+      const id = `sys_artist_${normalizeGroupKey(artistName)}`;
+      if (!albumsMap.has(id)) {
+        albumsMap.set(id, { id, name: artistName, songIds: [], createdAt: 0, isSystem: true, systemType: 'Singer' });
+      }
+      if (!albumsMap.get(id)!.songIds.includes(song.id)) albumsMap.get(id)!.songIds.push(song.id);
+    }
+
+    // Fallback when metadata tags are missing: group songs by folder name.
+    if (!albumName) {
+      const folderName = getBestFolderGroupName(song.path);
+      if (folderName) {
+        const id = `sys_folder_${normalizeGroupKey(folderName)}`;
+        if (!albumsMap.has(id)) {
+          albumsMap.set(id, { id, name: folderName, songIds: [], createdAt: 0, isSystem: true, systemType: 'Movie / Folder' });
+        }
+        if (!albumsMap.get(id)!.songIds.includes(song.id)) albumsMap.get(id)!.songIds.push(song.id);
+      }
+    }
+  });
+
+  return Array.from(albumsMap.values());
+}
+
 export function getAlbumSongs(albumId: string, allSongs: Song[]): Song[] {
-  const album = store.albums.find((a) => a.id === albumId);
+  const systemAlbums = getSystemAlbums(allSongs);
+  const album = store.albums.find((a) => a.id === albumId) || systemAlbums.find((a) => a.id === albumId);
   if (!album) return [];
   return album.songIds.map((id) => allSongs.find((s) => s.id === id)).filter(Boolean) as Song[];
 }

@@ -6,4 +6,7 @@ export interface Song {
   duration?: number;
   artwork?: string;
   album?: string;
+  composer?: string;
+  year?: string;
+  genre?: string;
 }

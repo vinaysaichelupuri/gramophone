@@ -19,9 +19,9 @@ import { SongListItem } from '@/components/SongListItem';
 import { SongOptionsMenu } from '@/components/SongOptionsMenu';
 import { StatusCard } from '@/components/StatusCard';
 import { useLibrary } from '@/hooks/useLibrary';
-import { getLocalSongs, isMusicLibraryModuleAvailable } from '@/services/musicLibraryService';
-import { arePlaybackModulesAvailable, loadQueueAndPlay, setupPlayer } from '@/services/playerService';
-import { loadLibraryStore, toggleLike } from '@/services/libraryStore';
+import { getLocalSongs, isMusicLibraryModuleAvailable, subscribeToLibraryUpdates } from '@/services/musicLibraryService';
+import { arePlaybackModulesAvailable, getCurrentSongId, loadQueueAndPlay, setupPlayer } from '@/services/playerService';
+import { getSystemAlbums, loadLibraryStore, toggleLike } from '@/services/libraryStore';
 import {
   AudioPermissionState,
   openPermissionSettings,
@@ -44,6 +44,11 @@ export function SongListScreen() {
   const [isMenuVisible, setIsMenuVisible] = useState(false);
   const library = useLibrary(); // re-renders when likes/albums change
   const hasNativeModuleSupport = isMusicLibraryModuleAvailable() && arePlaybackModulesAvailable();
+  const systemAlbums = useMemo(() => getSystemAlbums(songs), [songs]);
+  const allTabAlbums = useMemo(
+    () => [...library.albums, ...systemAlbums.filter((album) => album.id !== 'sys_all_songs')],
+    [library.albums, systemAlbums],
+  );
 
   const visibleSongs = useMemo(() => {
     let filtered = songs;
@@ -52,7 +57,7 @@ export function SongListScreen() {
     if (activeTab === 'liked') {
       filtered = filtered.filter((s) => library.likedSongIds.includes(s.id));
     } else if (activeTab !== 'all') {
-      const album = library.albums.find((a) => a.id === activeTab);
+      const album = allTabAlbums.find((a) => a.id === activeTab);
       if (album) {
         filtered = filtered.filter((s) => album.songIds.includes(s.id));
       }
@@ -109,7 +114,7 @@ export function SongListScreen() {
       seenIds.add(song.id);
       return true;
     });
-  }, [searchQuery, songs, sortAscending, activeTab, library]);
+  }, [searchQuery, songs, sortAscending, activeTab, library, allTabAlbums]);
 
   const loadLibrary = useCallback(async (forceRefresh = false) => {
     setIsLoading(true);
@@ -147,13 +152,24 @@ export function SongListScreen() {
 
   useEffect(() => {
     void loadLibrary();
+    const unsub = subscribeToLibraryUpdates((updatedSongs) => {
+      setSongs(updatedSongs);
+    });
+    return unsub;
   }, [loadLibrary]);
 
   const handlePlaySong = useCallback(
     async (songIndex: number) => {
       try {
+        const tappedSong = visibleSongs[songIndex];
+        if (!tappedSong) return;
+
+        if (getCurrentSongId() === tappedSong.id) {
+          router.push('/now-playing');
+          return;
+        }
+
         await loadQueueAndPlay(visibleSongs, songIndex);
-        router.push('/now-playing');
       } catch {
         setErrorMessage('Playback could not start. Please try a different file.');
       }
@@ -298,7 +314,7 @@ export function SongListScreen() {
           >
             <Text style={[styles.tabText, activeTab === 'liked' && styles.activeTabText]}>Liked</Text>
           </Pressable>
-          {library.albums.map((album) => (
+          {allTabAlbums.map((album) => (
             <Pressable
               key={album.id}
               style={[styles.tabBtn, activeTab === album.id && styles.activeTabBtn]}

@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { memo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, Vibration, View } from 'react-native';
 
 import { Song } from '@/types/song';
 import { COLORS } from '@/utils/colors';
@@ -21,10 +22,17 @@ export const SongListItem = memo(function SongListItem({
   isLiked = false,
   onLikePress,
 }: SongListItemProps) {
+  const handleLongPress = () => {
+    // Keep a tiny vibration fallback so feedback works even when haptics is unavailable.
+    Vibration.vibrate(10);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    onLongPress?.();
+  };
+
   return (
     <Pressable
       onPress={onPress}
-      onLongPress={onLongPress}
+      onLongPress={handleLongPress}
       delayLongPress={300}
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
     >

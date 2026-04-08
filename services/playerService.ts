@@ -19,6 +19,11 @@ export interface ActiveTrackSnapshot {
   duration?: number;
 }
 
+export interface QueueSnapshot {
+  songs: Song[];
+  currentIndex: number;
+}
+
 export type RepeatMode = "off" | "all" | "one";
 
 let isPlayerSetup = false;
@@ -35,6 +40,18 @@ let isHandlingFinish = false;
 
 let repeatMode: RepeatMode = "off";
 let isShuffleEnabled = false;
+
+async function syncKeepAwake(shouldStayAwake: boolean) {
+  try {
+    if (shouldStayAwake) {
+      await KeepAwake.activateKeepAwakeAsync();
+    } else {
+      await KeepAwake.deactivateKeepAwake();
+    }
+  } catch {
+    // Some runtimes/dev clients may reject keep-awake calls; ignore safely.
+  }
+}
 
 function normalizeUri(path: string): string {
   if (path.startsWith("file://") || path.startsWith("content://") || path.startsWith("http://") || path.startsWith("https://")) {
@@ -185,11 +202,7 @@ function applyPlaybackStatus(status: AVPlaybackStatus) {
     playbackState = "buffering";
   } else {
     playbackState = status.shouldPlay ? "playing" : "paused";
-    if (status.shouldPlay) {
-      KeepAwake.activateKeepAwakeAsync().catch(() => {});
-    } else {
-      KeepAwake.deactivateKeepAwake().catch(() => {});
-    }
+    void syncKeepAwake(status.shouldPlay);
   }
 
   if (status.didJustFinish) {
@@ -237,7 +250,9 @@ export async function loadQueueAndPlay(
     queue = shuffled;
     await loadTrackAtIndex(shuffledIndex >= 0 ? shuffledIndex : 0, true);
   } else {
-    queue = songs;
+    // Keep a decoupled queue copy so queue mutations (play next/add queue)
+    // never mutate arrays used directly by screen lists.
+    queue = [...songs];
     const safeIndex = Math.max(0, Math.min(startIndex, songs.length - 1));
     await loadTrackAtIndex(safeIndex, true);
   }
@@ -362,6 +377,18 @@ export function arePlaybackModulesAvailable(): boolean {
 
 export function getCurrentSongId(): string | null {
   return currentSongId;
+}
+
+export async function getQueueSnapshot(): Promise<QueueSnapshot> {
+  return {
+    songs: [...queue],
+    currentIndex,
+  };
+}
+
+export async function playAtQueueIndex(index: number): Promise<void> {
+  if (index < 0 || index >= queue.length) return;
+  await loadTrackAtIndex(index, true);
 }
 
 export async function playNow(song: Song): Promise<void> {
