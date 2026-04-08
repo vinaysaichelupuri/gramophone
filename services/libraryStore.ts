@@ -23,6 +23,53 @@ export interface LibraryData {
   albums: Album[];
 }
 
+function normalizeGroupKey(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function isIgnoredFolderName(folderName: string): boolean {
+  const normalized = folderName.trim().toLowerCase();
+  if (!normalized) return true;
+
+  const ignored = new Set([
+    'music',
+    'download',
+    'downloads',
+    'audio',
+    'songs',
+    'storage',
+    'emulated',
+    '0',
+    'android',
+    'media',
+  ]);
+  if (ignored.has(normalized)) return true;
+
+  // Skip technical folders like bitrate/quality buckets.
+  if (/^\d+\s?kbps$/.test(normalized)) return true;
+  if (/^\d{3,4}p$/.test(normalized)) return true;
+  if (/^(www\.)?[\w-]+\.(com|co|in|net|org)$/.test(normalized)) return true;
+  if (/(songsmp3|naasongs|sensongs|masstamilan|djmaza)/.test(normalized)) return true;
+
+  return false;
+}
+
+function getBestFolderGroupName(filePath: string): string | null {
+  const normalized = filePath.replace(/\\/g, '/');
+  const parts = normalized.split('/').filter(Boolean);
+  if (parts.length < 2) return null;
+
+  // Try closest folders first (parent, then parent's parent, etc.)
+  for (let i = parts.length - 2; i >= 0; i--) {
+    const candidate = parts[i]?.trim();
+    if (!candidate) continue;
+    if (isIgnoredFolderName(candidate)) continue;
+    return candidate;
+  }
+
+  return null;
+}
+
 // ─── Persistence ──────────────────────────────────────────────────────────────
 
 const DATA_PATH = `${RNFS.DocumentDirectoryPath}/gramophone_library.json`;
@@ -150,21 +197,46 @@ export async function removeSongFromAlbum(albumId: string, songId: string): Prom
 export function getSystemAlbums(songs: Song[]): Album[] {
   const albumsMap = new Map<string, Album>();
 
+  if (songs.length > 0) {
+    albumsMap.set('sys_all_songs', {
+      id: 'sys_all_songs',
+      name: 'All Songs',
+      songIds: songs.map((song) => song.id),
+      createdAt: 0,
+      isSystem: true,
+      systemType: 'Library',
+    });
+  }
+
   songs.forEach((song) => {
-    if (song.album) {
-      const id = `sys_album_${song.album.toLowerCase()}`;
+    const albumName = song.album?.trim();
+    if (albumName) {
+      const id = `sys_album_${normalizeGroupKey(albumName)}`;
       if (!albumsMap.has(id)) {
-        albumsMap.set(id, { id, name: song.album, songIds: [], createdAt: 0, isSystem: true, systemType: 'Movie / Album' });
+        albumsMap.set(id, { id, name: albumName, songIds: [], createdAt: 0, isSystem: true, systemType: 'Movie / Album' });
       }
       if (!albumsMap.get(id)!.songIds.includes(song.id)) albumsMap.get(id)!.songIds.push(song.id);
     }
-    
-    if (song.artist && song.artist !== 'Unknown Artist') {
-      const id = `sys_artist_${song.artist.toLowerCase()}`;
+
+    const artistName = song.artist?.trim();
+    if (artistName && artistName !== 'Unknown Artist') {
+      const id = `sys_artist_${normalizeGroupKey(artistName)}`;
       if (!albumsMap.has(id)) {
-        albumsMap.set(id, { id, name: song.artist, songIds: [], createdAt: 0, isSystem: true, systemType: 'Singer' });
+        albumsMap.set(id, { id, name: artistName, songIds: [], createdAt: 0, isSystem: true, systemType: 'Singer' });
       }
       if (!albumsMap.get(id)!.songIds.includes(song.id)) albumsMap.get(id)!.songIds.push(song.id);
+    }
+
+    // Fallback when metadata tags are missing: group songs by folder name.
+    if (!albumName) {
+      const folderName = getBestFolderGroupName(song.path);
+      if (folderName) {
+        const id = `sys_folder_${normalizeGroupKey(folderName)}`;
+        if (!albumsMap.has(id)) {
+          albumsMap.set(id, { id, name: folderName, songIds: [], createdAt: 0, isSystem: true, systemType: 'Movie / Folder' });
+        }
+        if (!albumsMap.get(id)!.songIds.includes(song.id)) albumsMap.get(id)!.songIds.push(song.id);
+      }
     }
   });
 

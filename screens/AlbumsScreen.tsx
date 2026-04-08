@@ -32,7 +32,7 @@ export function AlbumsScreen() {
 
   useEffect(() => {
     void loadLibraryStore();
-    getLocalSongs().then(setAllSongs).catch(() => {});
+    getLocalSongs(true).then(setAllSongs).catch(() => {});
     
     const unsub = subscribeToLibraryUpdates((songs) => {
       setAllSongs(songs);

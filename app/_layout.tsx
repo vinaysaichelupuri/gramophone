@@ -23,7 +23,7 @@ const navigationTheme = {
 export default function RootLayout() {
   useEffect(() => {
     if (Platform.OS === 'android') {
-      NavigationBar.setVisibilityAsync("hidden").catch(() => {});
+      NavigationBar.setVisibilityAsync("visible").catch(() => {});
     }
   }, []);
 
@@ -56,4 +56,3 @@ export default function RootLayout() {
     </ThemeProvider>
   );
 }
-

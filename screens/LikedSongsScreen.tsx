@@ -9,8 +9,8 @@ import { SongListItem } from '@/components/SongListItem';
 import { SongOptionsMenu } from '@/components/SongOptionsMenu';
 import { StatusCard } from '@/components/StatusCard';
 import { useLibrary } from '@/hooks/useLibrary';
-import { getLocalSongs } from '@/services/musicLibraryService';
-import { arePlaybackModulesAvailable, loadQueueAndPlay } from '@/services/playerService';
+import { getLocalSongs, subscribeToLibraryUpdates } from '@/services/musicLibraryService';
+import { arePlaybackModulesAvailable, getCurrentSongId, loadQueueAndPlay } from '@/services/playerService';
 import { toggleLike } from '@/services/libraryStore';
 import { Song } from '@/types/song';
 import { COLORS } from '@/utils/colors';
@@ -38,6 +38,10 @@ export function LikedSongsScreen() {
 
   useEffect(() => {
     void loadSongs();
+    const unsub = subscribeToLibraryUpdates((updatedSongs) => {
+      setAllSongs(updatedSongs);
+    });
+    return unsub;
   }, [loadSongs]);
 
   const likedSongs = allSongs.filter((s) => library.likedSongIds.includes(s.id));
@@ -46,8 +50,15 @@ export function LikedSongsScreen() {
     async (index: number) => {
       if (!arePlaybackModulesAvailable() || likedSongs.length === 0) return;
       try {
+        const tappedSong = likedSongs[index];
+        if (!tappedSong) return;
+
+        if (getCurrentSongId() === tappedSong.id) {
+          router.push('/now-playing');
+          return;
+        }
+
         await loadQueueAndPlay(likedSongs, index);
-        router.push('/now-playing');
       } catch {
         setErrorMessage('Playback could not start.');
       }

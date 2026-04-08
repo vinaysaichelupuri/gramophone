@@ -4,7 +4,7 @@ import { isAudioFile, sortSongsByTitle } from '@/utils/music';
 import { isExpoGoRuntime } from '@/utils/runtime';
 import { getAudioMetadata } from '@missingcore/audio-metadata';
 
-const MAX_SCAN_DEPTH = 3;
+const MAX_SCAN_DEPTH = 6;
 type ReactNativeFsModule = {
   [key: string]: any;
 };
@@ -37,19 +37,25 @@ export async function extractMetadataForSongs() {
   isExtractingMetadata = true;
   
   let hasChanges = false;
-  const wantedTags = ['artist', 'album', 'name', 'year'] as const;
+  const wantedTags = ['artist', 'album', 'albumArtist', 'name', 'year'] as const;
 
   for (let i = 0; i < songCache.length; i++) {
     const song = songCache[i];
-    if (song.artist !== 'Unknown Artist' || song.album) continue;
+    if (song.artist !== 'Unknown Artist' && song.album) continue;
 
     try {
-      const uri = `file://${song.path}`;
+      // Encode special characters (spaces, brackets, etc.) so metadata reads
+      // don't fail on valid filesystem paths.
+      const uri = encodeURI(`file://${song.path}`);
       const data = await getAudioMetadata(uri, wantedTags);
       const meta = data.metadata;
       
       let updated = false;
-      if (meta?.artist) { song.artist = meta.artist; updated = true; }
+      const bestArtist = meta?.artist ?? meta?.albumArtist;
+      if (bestArtist && (song.artist === 'Unknown Artist' || !song.artist?.trim())) {
+        song.artist = bestArtist;
+        updated = true;
+      }
       if (meta?.album) { song.album = meta.album; updated = true; }
       if (meta?.name) { song.title = meta.name; updated = true; }
       if (meta?.year) { song.year = String(meta.year); updated = true; }
